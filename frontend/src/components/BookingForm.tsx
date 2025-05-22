@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
 import api from '../api/api';
 import {
   Container, Typography, Box, TextField, Radio, RadioGroup, FormControlLabel,
-  FormControl, FormLabel, Button, Alert
+  FormLabel, Button, Alert
 } from '@mui/material';
 import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -18,7 +17,7 @@ interface VehicleCategory {
 
 interface Vehicle {
   id: string;
-  name: string;
+  model: string;
   categoryId: string;
 }
 
@@ -51,7 +50,10 @@ export default function BookingForm() {
   useEffect(() => {
     if (typeId) {
       api.get<Vehicle[]>(`/vehicles?categoryId=${typeId}`)
-        .then(res => setVehicles(res.data))
+        .then(res => {
+          console.log('Fetched vehicles:', res.data); 
+          setVehicles(res.data)
+        })
         .catch(() => setError('Could not load vehicle models'));
     }
   }, [typeId]);
@@ -123,7 +125,7 @@ export default function BookingForm() {
         <Box>
           <FormLabel>Specific model</FormLabel>
           <RadioGroup value={vehicleId} onChange={e => setVehicleId(e.target.value)}>
-            {vehicles.map(v => <FormControlLabel key={v.id} value={v.id} control={<Radio />} label={v.name} />)}
+            {vehicles.map(v => <FormControlLabel key={v.id} value={v.id} control={<Radio />} label={v.model} />)}
           </RadioGroup>
           <Button variant="contained" onClick={() => vehicleId ? next() : setError('Select a vehicle model')}>Next</Button>
           <Button onClick={prev}>Back</Button>
