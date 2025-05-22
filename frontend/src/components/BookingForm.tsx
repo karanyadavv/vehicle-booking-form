@@ -1,7 +1,5 @@
-// src/components/BookingForm.tsx
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-
 import api from '../api/api';
 import {
   Container, Typography, Box, TextField, Radio, RadioGroup, FormControlLabel,
@@ -11,6 +9,7 @@ import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { formatISO } from 'date-fns';
 
+// Define vehicle category and vehicle interfaces
 interface VehicleCategory {
   id: string;
   name: string;
@@ -24,72 +23,55 @@ interface Vehicle {
 }
 
 export default function BookingForm() {
-  // form data
-  const [firstName, setFirstName] = useState<string>('');
-  const [lastName, setLastName] = useState<string>('');
-  const [wheels, setWheels] = useState<'2' | '4'>('2');
-  const [typeId, setTypeId] = useState<string>('');
-  const [vehicleId, setVehicleId] = useState<string>('');
+  const [step, setStep] = useState(1);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [wheels, setWheels] = useState<'2' | '4' | ''>('');
+  const [typeId, setTypeId] = useState('');
+  const [vehicleId, setVehicleId] = useState('');
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
 
-  // fetched data
   const [types, setTypes] = useState<VehicleCategory[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
 
-  // ui state
-  const [error, setError] = useState<string>('');
-  const [success, setSuccess] = useState<string>('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
+  // Fetch vehicle types when wheels selection changes
   useEffect(() => {
-    setTypeId('');
-    setVehicleId('');
-    setTypes([]);
-    setVehicles([]);
-
-    api.get<VehicleCategory[]>(`/vehicle-types?wheels=${wheels}`)
-      .then(res => setTypes(res.data))
-      .catch(() => setError('Could not load vehicle types'));
+    if (wheels) {
+      api.get<VehicleCategory[]>(`/vehicle-types?wheels=${wheels}`)
+        .then(res => setTypes(res.data))
+        .catch(() => setError('Could not load vehicle types'));
+    }
   }, [wheels]);
 
+  // Fetch specific vehicle models when a vehicle type is selected
   useEffect(() => {
-    if (!typeId) {
-      setVehicles([]);
-      setVehicleId('');
-      return;
+    if (typeId) {
+      api.get<Vehicle[]>(`/vehicles?categoryId=${typeId}`)
+        .then(res => setVehicles(res.data))
+        .catch(() => setError('Could not load vehicle models'));
     }
-    api.get<Vehicle[]>(`/vehicles?categoryId=${typeId}`)
-      .then(res => setVehicles(res.data))
-      .catch(() => setError('Could not load vehicle models'));
   }, [typeId]);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
+  // Go to next step
+  const next = () => setStep(s => s + 1);
+  // Go to previous step
+  const prev = () => setStep(s => s - 1);
 
-    if (!startDate || !endDate) {
-      setError('Please select both start and end dates');
-      return;
-    }
-
+  // Final form submission
+  const handleSubmit = async () => {
     try {
       await api.post('/book', {
         firstName,
         lastName,
         vehicleId,
-        startDate: formatISO(startDate, { representation: 'date' }),
-        endDate: formatISO(endDate, { representation: 'date' }),
+        startDate: formatISO(startDate!, { representation: 'date' }),
+        endDate: formatISO(endDate!, { representation: 'date' })
       });
       setSuccess('Booking successful!');
-      // clear everything except wheels for smoother UX
-      setFirstName('');
-      setLastName('');
-      setTypeId('');
-      setVehicleId('');
-      setVehicles([]);
-      setStartDate(null);
-      setEndDate(null);
     } catch (err: any) {
       const msg = err?.response?.data?.error || 'Booking failed';
       setError(typeof msg === 'string' ? msg : 'Validation error');
@@ -99,117 +81,78 @@ export default function BookingForm() {
   return (
     <Container maxWidth="sm" sx={{ mt: 4 }}>
       <Typography variant="h4" gutterBottom>Book a Vehicle</Typography>
+      {error && <Alert severity="error">{error}</Alert>}
+      {success && <Alert severity="success">{success}</Alert>}
 
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+      {/* Step 1: First name and Last name */}
+      {step === 1 && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <TextField label="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} required fullWidth />
+          <TextField label="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} required fullWidth />
+          <Button variant="contained" onClick={() => firstName && lastName ? next() : setError('Please fill both names')}>Next</Button>
+        </Box>
+      )}
 
-      <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-
-        {/* 1. Name */}
-        <FormControl fullWidth>
-          <FormLabel>What is your name?</FormLabel>
-          <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
-            <TextField
-              label="First name"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              required
-              fullWidth
-            />
-            <TextField
-              label="Last name"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              required
-              fullWidth
-            />
-          </Box>
-        </FormControl>
-
-        {/* 2. Wheels */}
-        <FormControl>
+      {/* Step 2: Select number of wheels */}
+      {step === 2 && (
+        <Box>
           <FormLabel>Number of wheels</FormLabel>
-          <RadioGroup
-            row
-            value={wheels}
-            onChange={(e) => setWheels(e.target.value as '2' | '4')}
-          >
-            <FormControlLabel value="2" control={<Radio />} label="2" />
-            <FormControlLabel value="4" control={<Radio />} label="4" />
+          <RadioGroup value={wheels} onChange={e => setWheels(e.target.value as '2' | '4')}>
+            <FormControlLabel value="2" control={<Radio />} label="2-wheeler" />
+            <FormControlLabel value="4" control={<Radio />} label="4-wheeler" />
           </RadioGroup>
-        </FormControl>
+          <Button variant="contained" onClick={() => wheels ? next() : setError('Please select wheels')}>Next</Button>
+          <Button onClick={prev}>Back</Button>
+        </Box>
+      )}
 
-        {/* 3. Vehicle type (filtered by wheels) */}
-        {types.length > 0 && (
-          <FormControl>
-            <FormLabel>Type of vehicle</FormLabel>
-            <RadioGroup
-              value={typeId}
-              onChange={(e) => setTypeId(e.target.value)}
-            >
-              {types.map(t => (
-                <FormControlLabel
-                  key={t.id}
-                  value={t.id}
-                  control={<Radio />}
-                  label={t.name}
-                />
-              ))}
-            </RadioGroup>
-          </FormControl>
-        )}
+      {/* Step 3: Select vehicle type */}
+      {step === 3 && (
+        <Box>
+          <FormLabel>Type of vehicle</FormLabel>
+          <RadioGroup value={typeId} onChange={e => setTypeId(e.target.value)}>
+            {types.map(t => <FormControlLabel key={t.id} value={t.id} control={<Radio />} label={t.name} />)}
+          </RadioGroup>
+          <Button variant="contained" onClick={() => typeId ? next() : setError('Select a vehicle type')}>Next</Button>
+          <Button onClick={prev}>Back</Button>
+        </Box>
+      )}
 
-        {/* 4. Specific model (filtered by type) */}
-        {vehicles.length > 0 && (
-          <FormControl>
-            <FormLabel>Specific model</FormLabel>
-            <RadioGroup
-              value={vehicleId}
-              onChange={(e) => setVehicleId(e.target.value)}
-            >
-              {vehicles.map(v => (
-                <FormControlLabel
-                  key={v.id}
-                  value={v.id}
-                  control={<Radio />}
-                  label={v.name}
-                />
-              ))}
-            </RadioGroup>
-          </FormControl>
-        )}
+      {/* Step 4: Select specific vehicle model */}
+      {step === 4 && (
+        <Box>
+          <FormLabel>Specific model</FormLabel>
+          <RadioGroup value={vehicleId} onChange={e => setVehicleId(e.target.value)}>
+            {vehicles.map(v => <FormControlLabel key={v.id} value={v.id} control={<Radio />} label={v.name} />)}
+          </RadioGroup>
+          <Button variant="contained" onClick={() => vehicleId ? next() : setError('Select a vehicle model')}>Next</Button>
+          <Button onClick={prev}>Back</Button>
+        </Box>
+      )}
 
-        {/* 5. Date range */}
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
-          <Box sx={{ display: 'flex', gap: 2 }}>
+      {/* Step 5: Select booking start and end dates */}
+      {step === 5 && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
             <DatePicker
-              enableAccessibleFieldDOMStructure={false}
+              label="Start Date"
               value={startDate}
-              onChange={(newValue) => setStartDate(newValue)}
+              onChange={(newDate) => setStartDate(newDate)}
               disablePast
-              slots={{ textField: TextField }}
-              slotProps={{ textField: { fullWidth: true, label: 'Start Date', required: true } }}
+              slotProps={{ textField: { fullWidth: true } }}
             />
             <DatePicker
-              enableAccessibleFieldDOMStructure={false}
+              label="End Date"
               value={endDate}
-              onChange={(newValue) => setEndDate(newValue)}
+              onChange={(newDate) => setEndDate(newDate)}
               disablePast
-              minDate={startDate || undefined}
-              slots={{ textField: TextField }}
-              slotProps={{ textField: { fullWidth: true, label: 'End Date', required: true } }}
+              slotProps={{ textField: { fullWidth: true } }}
             />
-          </Box>
-        </LocalizationProvider>
-
-        <Button
-          type="submit"
-          variant="contained"
-          disabled={!vehicleId || !startDate || !endDate}
-        >
-          Book
-        </Button>
-      </Box>
+          </LocalizationProvider>
+          <Button variant="contained" onClick={() => (startDate && endDate) ? handleSubmit() : setError('Select both start and end date')}>Submit</Button>
+          <Button onClick={prev}>Back</Button>
+        </Box>
+      )}
     </Container>
   );
 }
