@@ -51,7 +51,6 @@ export default function BookingForm() {
     if (typeId) {
       api.get<Vehicle[]>(`/vehicles?categoryId=${typeId}`)
         .then(res => {
-          console.log('Fetched vehicles:', res.data); 
           setVehicles(res.data)
         })
         .catch(() => setError('Could not load vehicle models'));
