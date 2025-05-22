@@ -49,7 +49,13 @@ app.post('/api/book', async (req, res): Promise<any> => {
   }
 
   const booking = await prisma.booking.create({
-    data: { vehicleId, startDate, endDate, firstName, lastName }
+    data: { 
+      vehicleId, 
+      startDate: new Date(startDate), 
+      endDate: new Date(endDate), 
+      firstName, 
+      lastName 
+    }
   });
 
   res.status(201).json(booking);
